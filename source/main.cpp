@@ -7,6 +7,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+// Texture Headers
+#include "ui_brush.h"
+#include "ui_eraser.h"
+#include "ui_fill.h"
+
 #define SIZE_X 128
 #define SIZE_Y 96
 
@@ -24,7 +29,16 @@ typedef struct{
 	unsigned short colour = 0;
 }Pixel;
 
+// Debug
+bool debug = false;
+
+// World Information
 Pixel pixels[SIZE_X][SIZE_Y];
+
+// Textures
+u16* brushIcon;
+u16* eraserIcon;
+u16* fillIcon;
 
 void SpawnPixelAtCursor(Cursor* cursor, Type type){
 	if(pixels[cursor->x][cursor->y].type == none){
@@ -184,20 +198,43 @@ void DrawPixels(){
 	}
 }
 
-
+void DrawUI(Cursor* c){
+	int offset((c->y * 512) + (c->x * 2));
+	VRAM_A[offset] = RGB15(15, 0, 0);
+	VRAM_A[offset+1] = RGB15(15, 0, 0);
+	VRAM_A[offset+256] = RGB15(15, 0, 0);
+	VRAM_A[offset+257] = RGB15(15, 0, 0);
+	oamSet(&oamSub, 0, 0, 8, 0, 0, SpriteSize_32x32, SpriteColorFormat_16Color , brushIcon, 0, false, false, false, false, false); 
+}
 
 int main()
 {	
 	//set mode FB0
 	videoSetMode(MODE_FB0);
-	videoSetModeSub(MODE_0_2D);
 
-	// Initializes the default console.
-	consoleDemoInit();
+    if(debug){
+        // Initializes the default console.
+        videoSetModeSub(MODE_0_2D);
+	    consoleDemoInit();
+    }else{
+        videoSetModeSub(MODE_5_2D | DISPLAY_SPR_ACTIVE | DISPLAY_BG0_ACTIVE | DISPLAY_SPR_1D | DISPLAY_SPR_1D_BMP);
+    }
 
 	// Sets our VRAM banks.
 	vramSetBankA( VRAM_A_LCD );
-	vramSetBankB( VRAM_B_TEXTURE );
+	vramSetBankB(VRAM_B_MAIN_SPRITE);
+	vramSetBankD(VRAM_D_MAIN_BG_0x06000000 );
+	// Initializes the OAM
+	oamInit(&oamSub, SpriteMapping_Bmp_1D_128, false);
+
+    // Loads Textures
+    brushIcon = oamAllocateGfx(&oamSub, SpriteSize_32x32, SpriteColorFormat_16Color );
+	dmaCopy(ui_brushTiles, brushIcon, ui_brushTilesLen);
+	dmaCopy(ui_brushPal, &SPRITE_PALETTE[0], ui_brushPalLen);
+
+    eraserIcon = oamAllocateGfx(&oamSub, SpriteSize_32x32, SpriteColorFormat_16Color );
+	dmaCopy(ui_eraserTiles, eraserIcon, ui_eraserTilesLen);
+	dmaCopy(ui_eraserPal, &SPRITE_PALETTE[16], ui_eraserPalLen);
 
 	// Game Variables
 	Cursor c;
@@ -243,7 +280,10 @@ int main()
 		UpdatePixels();
 
 		DrawPixels();
-
+		if(!debug){
+			DrawUI(&c);
+		}
+		
 		// Waits for a screen refresh and waits till the render engine is not busy.
 		swiWaitForVBlank();
 		
