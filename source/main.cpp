@@ -15,7 +15,7 @@
 #define SIZE_X 128
 #define SIZE_Y 96
 
-enum Type { none, stone, sand, water };
+enum Type { none, stone, dirt, sand, water };
 enum Physics {nothing, particle, liquid, gas};
 
 typedef struct{
@@ -30,7 +30,7 @@ typedef struct{
 }Pixel;
 
 // Debug
-bool debug = false;
+bool debug = true;
 
 // World Information
 Pixel pixels[SIZE_X][SIZE_Y];
@@ -64,6 +64,10 @@ void SpawnPixelAtCursor(Cursor* cursor, Type type){
 			case stone:
 				colour = RGB15(15 - variance, 15 - variance, 15  - variance);
 				break;
+			case dirt:
+				colour = RGB15(7 - variance, 5 - variance, 3  - variance);
+				phys = particle;
+				break;
 			case sand:
 				colour = RGB15(15 - variance, 15 - variance, 9  - variance);
 				phys = particle;
@@ -82,12 +86,23 @@ void SpawnPixelAtCursor(Cursor* cursor, Type type){
 
 void UpdatePixels(){
 	// Updates all of the pixels
-	for(int y = SIZE_Y; y >= 0; y--){
+	for(int y = SIZE_Y-1; y >= 0; y--){
 		for(int x = 0; x < SIZE_X; x++){
 			Pixel* p = &pixels[x][y];
 			if(p->physics == nothing) continue;
 			if(p->type == none) continue;
-
+			else if(p->type == dirt){
+				Pixel* above = &pixels[x][y-1];
+				int variance = rand() % 2 - 1;
+				int chance = rand() % 600 - 1;
+				if(chance < 1){
+					if(above->type == none){
+						p->colour = RGB15(4 - variance, 15 - variance, 6 - variance);
+					}else{
+						p->colour = RGB15(7 - variance, 5 - variance, 3  - variance);
+					}
+				}
+			}
 			Pixel* below = &pixels[x][y+1];
 			Pixel* toLeft = &pixels[x-1][y];
 			Pixel* toRight = &pixels[x+1][y];
@@ -95,6 +110,7 @@ void UpdatePixels(){
 			Pixel* moveLeft = &pixels[x-1][y+1];
 
 			if(p->physics == particle){
+				if(y == SIZE_Y-1) continue;
 				if(below->type == none || below->physics == liquid){
 					MovePixelToLocation(p, below);
 					continue;
@@ -114,6 +130,7 @@ void UpdatePixels(){
 			}else if(p->physics == liquid){
 				int direction = 0;
 				if(below->type == none){
+					if(y == SIZE_Y-1) continue;
 					MovePixelToLocation(p, below);
 					continue;
 				}else{
@@ -122,12 +139,14 @@ void UpdatePixels(){
 					if(moveTo->type != none) moveTo = direction == 1 ? toLeft : toRight;
 					if(moveTo->type == none){
 						Pixel* underneath;
-						if(moveTo == toLeft){
-							underneath = moveLeft;
-						}else if (moveTo == toRight){
-							underneath = moveRight;
+						if(y < SIZE_Y-1){
+							if(moveTo == toLeft){
+								underneath = moveLeft;
+							}else if (moveTo == toRight){
+								underneath = moveRight;
+							}
 						}
-
+						
 						if(underneath->type == none){
 							MovePixelToLocation(p, underneath);
 							continue;
@@ -182,6 +201,7 @@ int main()
 	vramSetBankB(VRAM_B_MAIN_SPRITE);
 	vramSetBankD(VRAM_D_MAIN_BG_0x06000000 );
 
+	setBackdropColor(RGB15(8, 14, 15));
     // Loads Textures
     brushIcon = oamAllocateGfx(&oamSub, SpriteSize_32x32, SpriteColorFormat_16Color );
 	dmaCopy(ui_brushTiles, brushIcon, ui_brushTilesLen);
