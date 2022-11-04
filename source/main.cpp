@@ -62,22 +62,22 @@ void SpawnPixelAtCursor(Cursor* cursor, Type type){
 			case none:
 			 	break;
 			case stone:
-				colour = RGB15(15 - variance, 15 - variance, 15  - variance);
+				colour = ARGB16(1, 15 - variance, 15 - variance, 15  - variance);
 				break;
 			case dirt:
-				colour = RGB15(7 - variance, 5 - variance, 3  - variance);
+				colour = ARGB16(1, 10 - variance, 8 - variance, 5  - variance);
 				phys = particle;
 				break;
 			case sand:
-				colour = RGB15(15 - variance, 15 - variance, 9  - variance);
+				colour = ARGB16(1, 30 - variance, 30 - variance, 18  - variance);
 				phys = particle;
 				break;
 			case water:
-				colour = RGB15(1 - variance, 1 - variance, 15  - variance);
+				colour = ARGB16(1, 2 - variance, 2 - variance, 30  - variance);
 				phys = liquid;
 				break;
 			case lava:
-				colour = RGB15(15, 6 - (variance * 2), 0);
+				colour = ARGB16(1, 30, 12 - (variance * 2), 0);
 				phys = liquid;
 				break;
 		}
@@ -103,9 +103,9 @@ void UpdatePixels(){
 				int chance = rand() % 600 - 1;
 				if(chance < 1){
 					if(above->type == none){
-						p->colour = RGB15(4 - variance, 15 - variance, 6 - variance);
+						p->colour = ARGB16(1, 0 - variance, 20 - variance, 1 - variance);
 					}else{
-						p->colour = RGB15(7 - variance, 5 - variance, 3  - variance);
+						p->colour = ARGB16(1, 10 - variance, 8 - variance, 5  - variance);
 					}
 				}
 			}
@@ -121,28 +121,28 @@ void UpdatePixels(){
 					turnToStone = true;
 					above->type = none;
 					above->physics = nothing;
-					above->colour = RGB15(0,0,0);
+					above->colour = ARGB16(0, 0,0,0);
 				}else if (below->type == water){
 					turnToStone = true;
 					below->type = none;
 					below->physics = nothing;
-					above->colour = RGB15(0,0,0);
+					above->colour = ARGB16(0, 0,0,0);
 				}else if(left->type == water){
 					turnToStone = true;
 					left->type = none;
 					left->physics = nothing;
-					above->colour = RGB15(0,0,0);
+					above->colour = ARGB16(0, 0,0,0);
 				}else if (right->type == water){
 					turnToStone = true;
 					right->type = none;
 					right->physics = nothing;
-					above->colour = RGB15(0,0,0);
+					above->colour = ARGB16(0, 0,0,0);
 				}
 
 				if(turnToStone){
 					p->type = stone;
 					p->physics = nothing;
-					p->colour = RGB15(5 - variance, 2 - variance, 5  - variance);
+					p->colour = ARGB16(1, 5 - variance, 2 - variance, 5  - variance);
 				}
 			}
 
@@ -205,55 +205,50 @@ void UpdatePixels(){
 	}
 }
 
-void DrawPixels(){
+void DrawPixels(u16* vram){
 	for(int y = 0; y < SIZE_Y; y++){
 		for(int x = 0; x < SIZE_X; x++){
 			int offset = (y * 512) + (x * 2);
-			VRAM_A[offset] = pixels[x][y].colour;
-			VRAM_A[offset+1] = pixels[x][y].colour;
-			VRAM_A[offset+256] = pixels[x][y].colour;
-			VRAM_A[offset+257] = pixels[x][y].colour;
+			vram[offset] = pixels[x][y].colour;
+			vram[offset + 1] = pixels[x][y].colour;
+			vram[offset + 256] = pixels[x][y].colour;
+			vram[offset + 257] = pixels[x][y].colour;
 		}
 	}
 }
 
 void DrawUI(Cursor* c){
-	int offset((c->y * 512) + (c->x * 2));
-	VRAM_A[offset] = RGB15(15, 0, 0);
-	VRAM_A[offset+1] = RGB15(15, 0, 0);
-	VRAM_A[offset+256] = RGB15(15, 0, 0);
-	VRAM_A[offset+257] = RGB15(15, 0, 0);
 	oamSet(&oamSub, 0, 0, 8, 0, 0, SpriteSize_32x32, SpriteColorFormat_16Color , brushIcon, 0, false, false, false, false, false); 
 }
 
 int main()
 {	
-	//set mode FB0
-	videoSetMode(MODE_FB0);
-
-    if(debug){
-        // Initializes the default console.
-        videoSetModeSub(MODE_0_2D);
-	    consoleDemoInit();
-    }else{
-        videoSetModeSub(MODE_5_2D | DISPLAY_SPR_ACTIVE | DISPLAY_BG0_ACTIVE | DISPLAY_SPR_1D | DISPLAY_SPR_1D_BMP);
-		oamInit(&oamSub, SpriteMapping_Bmp_1D_128, false);
-    }
-
+	videoSetMode(MODE_5_2D | DISPLAY_SPR_ACTIVE | DISPLAY_BG0_ACTIVE | DISPLAY_SPR_1D | DISPLAY_SPR_1D_BMP);
+	videoSetModeSub(MODE_5_2D | DISPLAY_SPR_ACTIVE | DISPLAY_BG1_ACTIVE | DISPLAY_SPR_1D | DISPLAY_SPR_1D_BMP);
+	
 	// Sets our VRAM banks.
-	vramSetBankA( VRAM_A_LCD );
+	vramSetBankA(VRAM_A_MAIN_SPRITE);
 	vramSetBankB(VRAM_B_MAIN_SPRITE);
 	vramSetBankD(VRAM_D_MAIN_BG_0x06000000 );
+	vramSetBankI(VRAM_I_SUB_SPRITE);
 
-	setBackdropColor(RGB15(8, 14, 15));
+	oamInit(&oamMain, SpriteMapping_Bmp_1D_128, false);
+	oamInit(&oamSub, SpriteMapping_Bmp_1D_128, false);
+    
+
     // Loads Textures
     brushIcon = oamAllocateGfx(&oamSub, SpriteSize_32x32, SpriteColorFormat_16Color );
 	dmaCopy(ui_brushTiles, brushIcon, ui_brushTilesLen);
-	dmaCopy(ui_brushPal, &SPRITE_PALETTE[0], ui_brushPalLen);
+	dmaCopy(ui_brushPal, &SPRITE_PALETTE_SUB[0], ui_brushPalLen);
 
     eraserIcon = oamAllocateGfx(&oamSub, SpriteSize_32x32, SpriteColorFormat_16Color );
 	dmaCopy(ui_eraserTiles, eraserIcon, ui_eraserTilesLen);
-	dmaCopy(ui_eraserPal, &SPRITE_PALETTE[16], ui_eraserPalLen);
+	dmaCopy(ui_eraserPal, &SPRITE_PALETTE_SUB[16], ui_eraserPalLen);
+
+	// Intiailizes the background and gets the pointer in VRAM memory.
+	int bgMain = bgInit(3, BgType_Bmp16, BgSize_B16_256x256, 0,0);
+	u16* vramPixels = bgGetGfxPtr(bgMain);
+	setBackdropColor(RGB15(16, 25, 30));
 
 	// Game Variables
 	Cursor c;
@@ -267,27 +262,12 @@ int main()
 		u16 keys = keysHeld();
 
 		// Game Logic
-		if((keys & KEY_UP)){
-			if(c.y > 0) c.y -= 1;
-		}
-		if((keys & KEY_DOWN)){
-			if (c.y < SIZE_Y) c.y += 1;
-		}
-		if((keys & KEY_RIGHT)){
-			if(c.x < SIZE_X) c.x += 1;
-		}
-		if((keys & KEY_LEFT)){
-			if(c.x > 0) c.x -= 1;
-		}
-
-		if((keys & KEY_A)){
-			SpawnPixelAtCursor(&c, currentType);
-		}
-
-		if((keys & KEY_R)){
-			currentType = Type((currentType + 1) % 6);
-		}
-
+		if((keys & KEY_UP)) if(c.y > 0) c.y -= 1;
+		if((keys & KEY_DOWN)) if (c.y < SIZE_Y) c.y += 1;
+		if((keys & KEY_RIGHT)) if(c.x < SIZE_X) c.x += 1;
+		if((keys & KEY_LEFT)) if(c.x > 0) c.x -= 1;
+		if((keys & KEY_A)) SpawnPixelAtCursor(&c, currentType);
+		if((keys & KEY_R)) currentType = Type((currentType + 1) % 6);
 		if((keys & KEY_L)){
 			if(currentType == none){
 				currentType = water;
@@ -295,17 +275,18 @@ int main()
 				currentType = Type(currentType - 1);
 			}
 		}
-
 		UpdatePixels();
+		DrawPixels(vramPixels);
 
-		DrawPixels();
 		if(!debug){
 			DrawUI(&c);
 		}
 		
 		// Waits for a screen refresh and waits till the render engine is not busy.
 		swiWaitForVBlank();
-		
+		oamUpdate(&oamMain);
+		oamUpdate(&oamSub);
+
 		// Prints out debug data and controls.
 		consoleClear();
 		printf("          Controls:\n\n");
@@ -313,7 +294,6 @@ int main()
 		printf("A       - Place Pixel\n\n");
 		printf("Cursor Position (X,Y): %i, %i\n", c.x, c.y);
 		printf("Current Tile: %i\n", currentType);
-		glFlush(0);
 	}
 
 	return 0;
