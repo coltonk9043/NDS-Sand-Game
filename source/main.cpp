@@ -40,6 +40,19 @@ u16* brushIcon;
 u16* eraserIcon;
 u16* fillIcon;
 
+void MovePixelToLocation(Pixel* source, Pixel* destination){
+	Type tempType = destination->type;
+	Physics tempPhysics = destination->physics;
+	unsigned short tempColour = destination->colour;
+
+	destination->type = source->type;
+	destination->colour = source->colour;
+	destination->physics = source->physics;
+	source->type = tempType;
+	source->physics = tempPhysics;
+	source->colour = tempColour;
+}
+
 void SpawnPixelAtCursor(Cursor* cursor, Type type){
 	if(pixels[cursor->x][cursor->y].type == none){
 		unsigned int colour = 0;
@@ -83,72 +96,25 @@ void UpdatePixels(){
 
 			if(p->physics == particle){
 				if(below->type == none || below->physics == liquid){
-					Type tempType = below->type;
-					Physics tempPhysics = below->physics;
-					unsigned short tempColour = below->colour;
-
-					below->type = p->type;
-					below->colour = p->colour;
-					below->physics = p->physics;
-					p->type = tempType;
-					p->physics = tempPhysics;
-					p->colour = tempColour;
+					MovePixelToLocation(p, below);
 					continue;
 				}
-
-				if(toLeft->type != none && toRight->type != none) continue;
-
-				if(toLeft->type != none){
-					if(moveRight->type == none){
-						moveRight->type = p->type;
-						moveRight->colour = p->colour;
-						moveRight->physics = p->physics;
-						p->type = none;
-						p->physics = nothing;
-						p->colour = 0;
-						continue;
-					}
-				}else{
+				if(toLeft->type == none){
 					if(moveLeft->type == none){
-						moveLeft->type = p->type;
-						moveLeft->colour = p->colour;
-						moveLeft->physics = p->physics;
-						p->type = none;
-						p->physics = nothing;
-						p->colour = 0;
+						MovePixelToLocation(p, moveLeft);
 						continue;
 					}
 				}
-
-				if(toRight->type != none){
-					if(moveLeft->type == none){
-						moveLeft->type = p->type;
-						moveLeft->colour = p->colour;
-						moveLeft->physics = p->physics;
-						p->type = none;
-						p->colour = 0;
-						continue;
-					}
-				}else{
+				if(toRight->type == none){
 					if(moveRight->type == none){
-						moveRight->type = p->type;
-						moveRight->colour = p->colour;
-						moveRight->physics = p->physics;
-						p->type = none;
-						p->physics = nothing;
-						p->colour = 0;
+						MovePixelToLocation(p, moveRight);
 						continue;
 					}
 				}
 			}else if(p->physics == liquid){
 				int direction = 0;
 				if(below->type == none){
-					below->type = p->type;
-					below->colour = p->colour;
-					below->physics = p->physics;
-					p->type = none;
-					p->physics = nothing;
-					p->colour = 0;
+					MovePixelToLocation(p, below);
 					continue;
 				}else{
 					direction = rand() % 2 - 1;
@@ -163,20 +129,10 @@ void UpdatePixels(){
 						}
 
 						if(underneath->type == none){
-							underneath->type = p->type;
-							underneath->colour = p->colour;
-							underneath->physics = p->physics;
-							p->type = none;
-							p->physics = nothing;
-							p->colour = 0;
+							MovePixelToLocation(p, underneath);
 							continue;
 						}else{
-							moveTo->type = p->type;
-							moveTo->colour = p->colour;
-							moveTo->physics = liquid;
-							p->type = none;
-							p->physics = nothing;
-							p->colour = 0;
+							MovePixelToLocation(p, moveTo);
 						}
 						continue;
 					}
@@ -218,14 +174,13 @@ int main()
 	    consoleDemoInit();
     }else{
         videoSetModeSub(MODE_5_2D | DISPLAY_SPR_ACTIVE | DISPLAY_BG0_ACTIVE | DISPLAY_SPR_1D | DISPLAY_SPR_1D_BMP);
+		oamInit(&oamSub, SpriteMapping_Bmp_1D_128, false);
     }
 
 	// Sets our VRAM banks.
 	vramSetBankA( VRAM_A_LCD );
 	vramSetBankB(VRAM_B_MAIN_SPRITE);
 	vramSetBankD(VRAM_D_MAIN_BG_0x06000000 );
-	// Initializes the OAM
-	oamInit(&oamSub, SpriteMapping_Bmp_1D_128, false);
 
     // Loads Textures
     brushIcon = oamAllocateGfx(&oamSub, SpriteSize_32x32, SpriteColorFormat_16Color );
