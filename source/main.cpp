@@ -15,7 +15,7 @@
 #define SIZE_X 128
 #define SIZE_Y 96
 
-enum Type { none, stone, dirt, sand, water };
+enum Type { none, stone, dirt, sand, water, lava };
 enum Physics {nothing, particle, liquid, gas};
 
 typedef struct{
@@ -56,8 +56,8 @@ void MovePixelToLocation(Pixel* source, Pixel* destination){
 void SpawnPixelAtCursor(Cursor* cursor, Type type){
 	if(pixels[cursor->x][cursor->y].type == none){
 		unsigned int colour = 0;
-		Physics phys = nothing;
 		int variance = rand() % 2 - 1;
+		Physics phys = nothing;
 		switch(type){
 			case none:
 			 	break;
@@ -76,6 +76,10 @@ void SpawnPixelAtCursor(Cursor* cursor, Type type){
 				colour = RGB15(1 - variance, 1 - variance, 15  - variance);
 				phys = liquid;
 				break;
+			case lava:
+				colour = RGB15(15, 6 - (variance * 2), 0);
+				phys = liquid;
+				break;
 		}
 		pixels[cursor->x][cursor->y].colour = colour;
 		pixels[cursor->x][cursor->y].type = type;
@@ -90,8 +94,10 @@ void UpdatePixels(){
 		for(int x = 0; x < SIZE_X; x++){
 			Pixel* p = &pixels[x][y];
 			if(p->physics == nothing) continue;
+
+			/* Pixel Logic Section (ie. interacting with other pixels.)*/
 			if(p->type == none) continue;
-			else if(p->type == dirt){
+			if(p->type == dirt){
 				Pixel* above = &pixels[x][y-1];
 				int variance = rand() % 2 - 1;
 				int chance = rand() % 600 - 1;
@@ -103,6 +109,44 @@ void UpdatePixels(){
 					}
 				}
 			}
+			if(p->type == lava){
+				int variance = rand() % 2 - 1;
+				bool turnToStone = false;
+				Pixel* above = &pixels[x][y-1];
+				Pixel* below = &pixels[x][y+1];
+				Pixel* right = &pixels[x][y+1];
+				Pixel* left = &pixels[x][y-1];
+
+				if(above->type == water){
+					turnToStone = true;
+					above->type = none;
+					above->physics = nothing;
+					above->colour = RGB15(0,0,0);
+				}else if (below->type == water){
+					turnToStone = true;
+					below->type = none;
+					below->physics = nothing;
+					above->colour = RGB15(0,0,0);
+				}else if(left->type == water){
+					turnToStone = true;
+					left->type = none;
+					left->physics = nothing;
+					above->colour = RGB15(0,0,0);
+				}else if (right->type == water){
+					turnToStone = true;
+					right->type = none;
+					right->physics = nothing;
+					above->colour = RGB15(0,0,0);
+				}
+
+				if(turnToStone){
+					p->type = stone;
+					p->physics = nothing;
+					p->colour = RGB15(5 - variance, 2 - variance, 5  - variance);
+				}
+			}
+
+
 			Pixel* below = &pixels[x][y+1];
 			Pixel* toLeft = &pixels[x-1][y];
 			Pixel* toRight = &pixels[x+1][y];
@@ -241,7 +285,7 @@ int main()
 		}
 
 		if((keys & KEY_R)){
-			currentType = Type((currentType + 1) % 4);
+			currentType = Type((currentType + 1) % 6);
 		}
 
 		if((keys & KEY_L)){
