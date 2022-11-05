@@ -10,7 +10,6 @@
 #include "Button.h"
 
 // Texture Headers
-#include "barrel.h"
 #include "ui_brush.h"
 #include "ui_eraser.h"
 #include "ui_fill.h"
