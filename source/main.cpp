@@ -7,7 +7,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "Button.h"
+
 // Texture Headers
+#include "barrel.h"
 #include "ui_brush.h"
 #include "ui_eraser.h"
 #include "ui_fill.h"
@@ -17,6 +20,7 @@
 
 enum Type { none, stone, dirt, sand, water, lava };
 enum Physics {nothing, particle, liquid, gas};
+enum Tool {brush, eraser, fill};
 
 typedef struct{
 	int x = 0;
@@ -29,11 +33,9 @@ typedef struct{
 	unsigned short colour = 0;
 }Pixel;
 
-// Debug
-bool debug = true;
-
 // World Information
 Pixel pixels[SIZE_X][SIZE_Y];
+Tool currentTool = brush;
 
 // Textures
 u16* brushIcon;
@@ -53,14 +55,14 @@ void MovePixelToLocation(Pixel* source, Pixel* destination){
 	source->colour = tempColour;
 }
 
-void SpawnPixelAtCursor(Cursor* cursor, Type type){
+void SpawnPixel(Cursor* cursor, Type type){
 	if(pixels[cursor->x][cursor->y].type == none){
 		unsigned int colour = 0;
 		int variance = rand() % 2 - 1;
 		Physics phys = nothing;
 		switch(type){
 			case none:
-			 	break;
+				return;
 			case stone:
 				colour = ARGB16(1, 15 - variance, 15 - variance, 15  - variance);
 				break;
@@ -87,6 +89,11 @@ void SpawnPixelAtCursor(Cursor* cursor, Type type){
 	}
 }
 
+void DeletePixel(Cursor* cursor){
+	pixels[cursor->x][cursor->y].colour =  ARGB16(0, 0, 0, 0);
+	pixels[cursor->x][cursor->y].type = none;
+	pixels[cursor->x][cursor->y].physics = nothing;
+}
 
 void UpdatePixels(){
 	// Updates all of the pixels
@@ -217,38 +224,42 @@ void DrawPixels(u16* vram){
 	}
 }
 
-void DrawUI(Cursor* c){
-	oamSet(&oamSub, 0, 0, 8, 0, 0, SpriteSize_32x32, SpriteColorFormat_16Color , brushIcon, 0, false, false, false, false, false); 
-}
-
 int main()
 {	
+	touchPosition touch;
+
 	videoSetMode(MODE_5_2D | DISPLAY_SPR_ACTIVE | DISPLAY_BG0_ACTIVE | DISPLAY_SPR_1D | DISPLAY_SPR_1D_BMP);
-	videoSetModeSub(MODE_5_2D | DISPLAY_SPR_ACTIVE | DISPLAY_BG1_ACTIVE | DISPLAY_SPR_1D | DISPLAY_SPR_1D_BMP);
-	
-	// Sets our VRAM banks.
-	vramSetBankA(VRAM_A_MAIN_SPRITE);
-	vramSetBankB(VRAM_B_MAIN_SPRITE);
-	vramSetBankD(VRAM_D_MAIN_BG_0x06000000 );
-	vramSetBankI(VRAM_I_SUB_SPRITE);
+	videoSetModeSub(MODE_5_2D);
+	vramSetPrimaryBanks(VRAM_A_MAIN_BG_0x06000000, VRAM_B_MAIN_SPRITE, VRAM_C_SUB_BG, VRAM_D_SUB_SPRITE);
 
 	oamInit(&oamMain, SpriteMapping_Bmp_1D_128, false);
 	oamInit(&oamSub, SpriteMapping_Bmp_1D_128, false);
-    
 
     // Loads Textures
     brushIcon = oamAllocateGfx(&oamSub, SpriteSize_32x32, SpriteColorFormat_16Color );
 	dmaCopy(ui_brushTiles, brushIcon, ui_brushTilesLen);
-	dmaCopy(ui_brushPal, &SPRITE_PALETTE_SUB[0], ui_brushPalLen);
+	dmaCopy(ui_brushPal, &(SPRITE_PALETTE_SUB[0]), ui_brushPalLen);
 
-    eraserIcon = oamAllocateGfx(&oamSub, SpriteSize_32x32, SpriteColorFormat_16Color );
+    eraserIcon = oamAllocateGfx(&oamSub, SpriteSize_32x32, SpriteColorFormat_256Color );
 	dmaCopy(ui_eraserTiles, eraserIcon, ui_eraserTilesLen);
-	dmaCopy(ui_eraserPal, &SPRITE_PALETTE_SUB[16], ui_eraserPalLen);
+	dmaCopy(ui_eraserPal, &(SPRITE_PALETTE_SUB[16]), ui_eraserPalLen);
+
+	fillIcon = oamAllocateGfx(&oamSub, SpriteSize_32x32, SpriteColorFormat_256Color );
+	dmaCopy(ui_fillTiles, fillIcon, ui_fillTilesLen);
+	dmaCopy(ui_fillPal, &(SPRITE_PALETTE_SUB[32]), ui_fillPalLen);
+
+	Button brushButton = {0,8,32,32, brushIcon, 0};
+	Button eraserButton = {-4,40,32,32, eraserIcon, 1};
+	Button fillButton = {-4,72,32,32, fillIcon, 2};
 
 	// Intiailizes the background and gets the pointer in VRAM memory.
 	int bgMain = bgInit(3, BgType_Bmp16, BgSize_B16_256x256, 0,0);
-	u16* vramPixels = bgGetGfxPtr(bgMain);
+	int bgSub = bgInitSub(3, BgType_Bmp16, BgSize_B16_256x256, 0,0);
+	u16* video_buffer_main = bgGetGfxPtr(bgMain);
+	u16* video_buffer_sub = bgGetGfxPtr(bgSub);
+
 	setBackdropColor(RGB15(16, 25, 30));
+	setBackdropColorSub(RGB15(15, 15, 15));
 
 	// Game Variables
 	Cursor c;
@@ -262,11 +273,39 @@ int main()
 		u16 keys = keysHeld();
 
 		// Game Logic
+		if(keys & KEY_TOUCH){
+			touchRead(&touch);
+			if(brushButton.Clicked(touch.px, touch.py)){
+				currentTool = brush;
+				brushButton.x = 0;
+				eraserButton.x = -4;
+				fillButton.x = -4;
+			} 
+			if(eraserButton.Clicked(touch.px, touch.py)){
+				currentTool = eraser;
+				brushButton.x = -4;
+				eraserButton.x = 0;
+				fillButton.x = -4;
+			}
+			if(fillButton.Clicked(touch.px, touch.py)){
+				currentTool = fill;
+				brushButton.x = -4;
+				eraserButton.x = -4;
+				fillButton.x = 0;
+			}
+		}
+			
 		if((keys & KEY_UP)) if(c.y > 0) c.y -= 1;
 		if((keys & KEY_DOWN)) if (c.y < SIZE_Y) c.y += 1;
 		if((keys & KEY_RIGHT)) if(c.x < SIZE_X) c.x += 1;
 		if((keys & KEY_LEFT)) if(c.x > 0) c.x -= 1;
-		if((keys & KEY_A)) SpawnPixelAtCursor(&c, currentType);
+		if((keys & KEY_A)){
+			if(currentTool == brush){
+				SpawnPixel(&c, currentType);
+			}else if (currentTool == eraser){
+				DeletePixel(&c);
+			}
+		} 
 		if((keys & KEY_R)) currentType = Type((currentType + 1) % 6);
 		if((keys & KEY_L)){
 			if(currentType == none){
@@ -275,13 +314,19 @@ int main()
 				currentType = Type(currentType - 1);
 			}
 		}
-		UpdatePixels();
-		DrawPixels(vramPixels);
 
-		if(!debug){
-			DrawUI(&c);
-		}
-		
+
+
+		UpdatePixels();
+
+		// Draw Pixels into Background.
+		DrawPixels(video_buffer_main);
+
+		// Draw UI in Sub Engine.
+		brushButton.Draw();
+		eraserButton.Draw();
+		fillButton.Draw();
+
 		// Waits for a screen refresh and waits till the render engine is not busy.
 		swiWaitForVBlank();
 		oamUpdate(&oamMain);
