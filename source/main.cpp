@@ -13,6 +13,7 @@
 #include "ui_brush.h"
 #include "ui_eraser.h"
 #include "ui_fill.h"
+#include "crosshair.h"
 
 #define SIZE_X 128
 #define SIZE_Y 96
@@ -40,6 +41,8 @@ Tool currentTool = brush;
 u16* brushIcon;
 u16* eraserIcon;
 u16* fillIcon;
+
+u16* crosshairIcon;
 
 void MovePixelToLocation(Pixel* source, Pixel* destination){
 	Type tempType = destination->type;
@@ -239,13 +242,17 @@ int main()
 	dmaCopy(ui_brushTiles, brushIcon, ui_brushTilesLen);
 	dmaCopy(ui_brushPal, &(SPRITE_PALETTE_SUB[0]), ui_brushPalLen);
 
-    eraserIcon = oamAllocateGfx(&oamSub, SpriteSize_32x32, SpriteColorFormat_256Color );
+    eraserIcon = oamAllocateGfx(&oamSub, SpriteSize_32x32, SpriteColorFormat_16Color );
 	dmaCopy(ui_eraserTiles, eraserIcon, ui_eraserTilesLen);
 	dmaCopy(ui_eraserPal, &(SPRITE_PALETTE_SUB[16]), ui_eraserPalLen);
 
-	fillIcon = oamAllocateGfx(&oamSub, SpriteSize_32x32, SpriteColorFormat_256Color );
+	fillIcon = oamAllocateGfx(&oamSub, SpriteSize_32x32, SpriteColorFormat_16Color );
 	dmaCopy(ui_fillTiles, fillIcon, ui_fillTilesLen);
 	dmaCopy(ui_fillPal, &(SPRITE_PALETTE_SUB[32]), ui_fillPalLen);
+
+	crosshairIcon = oamAllocateGfx(&oamMain, SpriteSize_32x32, SpriteColorFormat_16Color );
+	dmaCopy(crosshairTiles, crosshairIcon, crosshairTilesLen);
+	dmaCopy(crosshairPal, &(SPRITE_PALETTE[0]), crosshairPalLen);
 
 	Button brushButton = {0,8,32,32, brushIcon, 0};
 	Button eraserButton = {-4,40,32,32, eraserIcon, 1};
@@ -325,6 +332,7 @@ int main()
 		brushButton.Draw();
 		eraserButton.Draw();
 		fillButton.Draw();
+		oamSet(&oamMain, 0, c.x*2-16, c.y*2-16, 0, 0, SpriteSize_32x32, SpriteColorFormat_16Color, crosshairIcon, 0, false, false, false, false, false); 
 
 		// Waits for a screen refresh and waits till the render engine is not busy.
 		swiWaitForVBlank();
